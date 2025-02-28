@@ -14,6 +14,7 @@ from WebKit import *
 from Quartz import *
 from Foundation import NSDictionary
 from ApplicationServices import AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt
+from .health_checks import health_check_decorator
 
 
 WEBSITE = "https://grok.com?referrer=macos-grok-overlay"
@@ -270,8 +271,8 @@ class AppDelegate(NSObject):
         if message.name() == "backgroundColorHandler":
             bg_color_str = message.body()
             # Convert CSS color to NSColor (assuming RGB for simplicity)
-            if bg_color_str.startswith("rgb"):
-                rgb_values = [float(val) for val in bg_color_str[4:-1].split(",")]
+            if bg_color_str.startswith("rgb") and ("(" in bg_color_str) and (")" in bg_color_str):
+                rgb_values = [float(val) for val in bg_color_str[bg_color_str.index("(")+1:bg_color_str.index(")")].split(",")]
                 r, g, b = [val / 255.0 for val in rgb_values[:3]]
                 color = NSColor.colorWithCalibratedRed_green_blue_alpha_(r, g, b, 1.0)
                 self.drag_area.setBackgroundColor_(color)
@@ -407,6 +408,7 @@ def ensure_accessibility_permissions():
 
 
 # Main executable for running the application from the command line.
+@health_check_decorator
 def main():
     parser = argparse.ArgumentParser(description=f"macOS {APP_TITLE} Overlay App - Dedicated window that can be summoned and dismissed with the keyboard command Option+Space.")
     parser.add_argument(
@@ -453,4 +455,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # Execute the decorated main function.
     main()
