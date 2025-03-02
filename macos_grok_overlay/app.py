@@ -12,13 +12,20 @@ from .constants import (
     APP_TITLE,
     CORNER_RADIUS,
     DRAG_AREA_HEIGHT,
-    LAUNCHER_TRIGGER_MASK,
-    LAUNCHER_TRIGGER,
     LOGO_BLACK_PATH,
     LOGO_WHITE_PATH,
     FRAME_SAVE_NAME,
     STATUS_ITEM_CONTEXT,
     WEBSITE,
+)
+from .launcher import (
+    install_startup,
+    uninstall_startup,
+)
+from .listener import (
+    global_show_hide_listener,
+    load_custom_lancher_trigger,
+    set_custom_launcher_trigger,
 )
 
 
@@ -136,19 +143,25 @@ class AppDelegate(NSObject):
         menu = NSMenu.alloc().init()
         # Create and configure menu items with explicit targets
         show_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Show "+APP_TITLE, "showWindow:", "")
-        show_item.setTarget_(self)  # Set target to self (AppDelegate)
+        show_item.setTarget_(self)
         menu.addItem_(show_item)
         hide_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Hide "+APP_TITLE, "hideWindow:", "h")
-        hide_item.setTarget_(self)  # Set target to self (AppDelegate)
+        hide_item.setTarget_(self)
         menu.addItem_(hide_item)
         home_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Home", "goToWebsite:", "g")
-        home_item.setTarget_(self)  # Set target to self (AppDelegate)
+        home_item.setTarget_(self)
         menu.addItem_(home_item)
         quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Quit", "terminate:", "q")
-        quit_item.setTarget_(NSApp)  # Set target to NSApp for terminate:
+        quit_item.setTarget_(NSApp)
         menu.addItem_(quit_item)
+        set_trigger_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Set New Trigger", "setTrigger:", "")
+        set_trigger_item.setTarget_(self)
+        menu.addItem_(set_trigger_item)
+        install_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Install", "install:", "")
+        install_item.setTarget_(self)
+        menu.addItem_(install_item)
         uninstall_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Uninstall", "uninstall:", "")
-        uninstall_item.setTarget_(self)  # Set target to self (AppDelegate)
+        uninstall_item.setTarget_(self)
         menu.addItem_(uninstall_item)
         # Set the menu for the status item
         self.status_item.setMenu_(menu)
@@ -167,7 +180,7 @@ class AppDelegate(NSObject):
             kCGHeadInsertEventTap, # Insert at the head of the event queue
             kCGEventTapOptionDefault, # Actively filter events
             CGEventMaskBit(kCGEventKeyDown), # Capture key-down events
-            self.global_show_hide_listener, # Your callback function
+            global_show_hide_listener(self), # Your callback function
             None # Optional user info (refcon)
         )
         if tap:
@@ -178,9 +191,11 @@ class AppDelegate(NSObject):
             CFRunLoopRun() # Start the run loop
         else:
             print("Failed to create event tap. Check Accessibility permissions.")
+        # Load the custom launch trigger if the user set it.
+        load_custom_lancher_trigger()
         # Make sure this window is shown and focused.
         self.showWindow_(None)
-    
+
     # Logic to show the overlay, make it the key window, and focus on the typing area.
     def showWindow_(self, sender):
         self.window.makeKeyAndOrderFront_(None)
@@ -201,9 +216,22 @@ class AppDelegate(NSObject):
         self.webview.loadRequest_(request)
     
     # Go to the default landing website for the overlay (in case accidentally navigated away).
+    def install_(self, sender):
+        if install_startup():
+            # Exit the current process since a new one will launch.
+            sys.exit(0)
+            print("Installation successful, exiting.", flush=True)
+        else:
+            print("Installation unsuccessful.", flush=True)
+
+    # Go to the default landing website for the overlay (in case accidentally navigated away).
     def uninstall_(self, sender):
-        uninstall_startup()
-        NSApp.hide_(None)
+        if uninstall_startup():
+            NSApp.hide_(None)
+
+    # Handle the 'Set Trigger' menu item click.
+    def setTrigger_(self, sender):
+        set_custom_launcher_trigger()
 
     # For capturing key commands while the key window (in focus).
     def keyDown_(self, event):
@@ -271,25 +299,6 @@ class AppDelegate(NSObject):
                 r, g, b = [val / 255.0 for val in rgb_values[:3]]
                 color = NSColor.colorWithCalibratedRed_green_blue_alpha_(r, g, b, 1.0)
                 self.drag_area.setBackgroundColor_(color)
-
-    # The logic for the global event listener for showing and hiding the application.
-    def global_show_hide_listener(self, proxy, event_type, event, refcon):
-        # Handle only key-down events
-        if event_type == kCGEventKeyDown:
-            # Extract the keycode (Space is 49)
-            keycode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
-            # Extract modifier flags (e.g., Option, Shift, etc.)
-            flags = CGEventGetFlags(event) & LAUNCHER_TRIGGER_MASK
-            # Check for Option + Space (no other modifiers)
-            if (flags == LAUNCHER_TRIGGER["flags"]) and (keycode == LAUNCHER_TRIGGER["key"]):
-                if self.window.isKeyWindow():
-                    self.hideWindow_(None)
-                else:
-                    self.showWindow_(None)
-                # Return None to consume the event and prevent propagation
-                return None
-        # Return the event unchanged if it’s not Option + Space
-        return event
 
     # Logic for checking what color the logo in the status bar should be, and setting appropriate logo.
     def updateStatusItemImage(self):

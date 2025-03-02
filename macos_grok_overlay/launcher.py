@@ -31,9 +31,11 @@ def install_startup():
     result = os.system(f"launchctl load {plist_path}")
     if result != 0:
         print(f"Failed to load Launch Agent with exit code {result}")
-        sys.exit(1)
-    print(f"Installed as startup app. Launch Agent created at {plist_path}.")
-    print(f"To disable, run: macos-{APP_TITLE.lower()}-overlay --uninstall-startup")
+        return False
+    else:
+        print(f"Installed as startup app. Launch Agent created at {plist_path}.")
+        print(f"To disable, run: macos-{APP_TITLE.lower()}-overlay --uninstall-startup")
+        return True
 
 
 # Uninstall the app from running at login.
@@ -49,8 +51,10 @@ def uninstall_startup():
             print(f"Failed to uninstall launch agent. Encountered exception when running `launchctl unload {plist_path}`.\n{e}\n")
         print(f"Removed {plist_path}.")
         os.remove(plist_path)
+        return True
     else:
         print("Launch Agent not found. Nothing to uninstall.")
+        return False
 
 # Check if the current process has Accessibility permissions.
 def check_permissions(ask=True):
