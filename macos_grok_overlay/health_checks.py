@@ -6,10 +6,23 @@ import traceback
 import functools
 import platform
 import objc
+from pathlib import Path
+
+
+# Get a path for logging errors that is persistent.
+def get_log_dir():
+    # Set a persistent log directory in the user's home folder
+    log_dir = Path.home() / "Library" / "Logs" / "macos-grok-overlay"
+    # Create the directory if it doesn't exist
+    log_dir.mkdir(parents=True, exist_ok=True)
+    # Return a persistent path name (same file for error logs).
+    return log_dir
 
 
 # Settings for crash loop detection.
-CRASH_COUNTER_FILE = os.path.join(tempfile.gettempdir(), "macos_grok_overlay_crash_counter.txt")
+LOG_DIR = get_log_dir()
+LOG_PATH = LOG_DIR / "macos_grok_overlay_error_log.txt"
+CRASH_COUNTER_FILE = LOG_DIR / "macos_grok_overlay_crash_counter.txt"
 CRASH_THRESHOLD = 3    # Maximum allowed crashes within the time window.
 CRASH_TIME_WINDOW = 60 # Time window in seconds.
 
@@ -20,10 +33,11 @@ def get_system_info():
     python_version = platform.python_version()
     pyobjc_version = getattr(objc, '__version__', 'unknown')
     info = (
+        "\n"
         "System Information:\n"
-        f"macOS version: {macos_version}\n"
-        f"Python version: {python_version}\n"
-        f"PyObjC version: {pyobjc_version}\n\n"
+        f" macOS version: {macos_version}\n"
+        f" Python version: {python_version}\n"
+        f" PyObjC version: {pyobjc_version}\n"
     )
     return info
 
@@ -32,7 +46,6 @@ def check_crash_loop():
     current_time = time.time()
     count = 0
     last_time = 0
-
     # Read previous crash info if it exists.
     if os.path.exists(CRASH_COUNTER_FILE):
         try:
@@ -45,13 +58,11 @@ def check_crash_loop():
         except Exception:
             # On any error, reset the counter.
             count = 0
-
     # If the last crash was within the time window, increment; otherwise, reset.
     if current_time - last_time < CRASH_TIME_WINDOW:
         count += 1
     else:
         count = 1
-
     # Write the updated crash info back to the file.
     try:
         with open(CRASH_COUNTER_FILE, "w") as f:
@@ -61,7 +72,13 @@ def check_crash_loop():
 
     # If the count exceeds the threshold, abort further restarts.
     if count > CRASH_THRESHOLD:
-        print("ERROR: Crash loop detected (more than {} crashes within {} seconds). Aborting further restarts.".format(CRASH_THRESHOLD, CRASH_TIME_WINDOW))
+        print("ERROR: Crash loop detected (more than {} crashes within {} seconds). Crash counter file (for reference) at:\n  {}\n\nAborting further restarts. To resume attempts to launch, delete the counter file with:\n  rm {}\n\nError log (most recent) at:\n  {}".format(
+            CRASH_THRESHOLD,
+            CRASH_TIME_WINDOW,
+            CRASH_COUNTER_FILE,
+            CRASH_COUNTER_FILE,
+            LOG_PATH
+        ))
         sys.exit(1)
 
 # Resets the crash counter after a successful run.
@@ -85,16 +102,15 @@ def health_check_decorator(func):
             print("SUCCESS")
             return result
         except Exception:
-            log_path = os.path.join(tempfile.gettempdir(), "macos_grok_overlay_error_log.txt")
             system_info = get_system_info()
             error_trace = traceback.format_exc()
-            with open(log_path, "w") as log_file:
+            with open(LOG_PATH, "w") as log_file:
                 log_file.write("An unhandled exception occurred:\n")
                 log_file.write(system_info)
                 log_file.write(error_trace)
             print("ERROR: Application failed to start properly. Details:")
             print(system_info)
             print(error_trace)
-            print(f"Error log saved at: {log_path}", flush=True)
+            print(f"Error log saved at: {LOG_PATH}", flush=True)
             sys.exit(1)
     return wrapper
