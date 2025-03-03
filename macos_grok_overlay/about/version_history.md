@@ -3,3 +3,4 @@
 | 0.0.10<br>February 2025 | Fixed bug in parsing float, added health checks <br> decorator to catch some errors. |
 | 0.0.11<br>March 2025 | Improved crash loop error logging for easier bug <br> reporting. |
 | 0.0.12<br>March 2025 | Added ability to declare new listener key <br> combination to deploy and hide application. |
+| 0.0.13<br>March 2025 | Redid the new-key-command selection to not require <br> system notifications. Instead creates an overlay <br> in-app. |
