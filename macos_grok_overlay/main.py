@@ -7,6 +7,7 @@ from .constants import (
     APP_TITLE,
     LAUNCHER_TRIGGER,
     LAUNCHER_TRIGGER_MASK,
+    PERMISSION_CHECK_EXIT,
 )
 from .app import (
     AppDelegate,
@@ -55,10 +56,13 @@ def main():
     if args.check_permissions:
         is_trusted = check_permissions(ask=False)
         print("Permissions granted:", is_trusted)
-        sys.exit(0 if is_trusted else 1)
+        sys.exit(0 if is_trusted else PERMISSION_CHECK_EXIT)
 
-    # Ensure permissions before proceeding
-    ensure_accessibility_permissions()
+    # Check permissions (make request to user) when launching, but proceed regardless.
+    check_permissions()
+    # # Ensure permissions before proceeding
+    # ensure_accessibility_permissions()
+
     # Default behavior: run the app and inform user of startup options
     print()
     print(f"Starting macos-{APP_TITLE.lower()}-overlay.")
