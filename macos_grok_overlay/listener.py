@@ -1,13 +1,23 @@
 # Python libraries
 import json
+import time
 from pathlib import Path
 
 # Apple libraries
-from Foundation import (
-    NSUserNotification,
-    NSUserNotificationCenter,
+from AppKit import (
+    NSColor,
+    NSEvent,
+    NSFont,
+    NSKeyDown,
+    NSMakeRect,
+    NSRoundedBezelStyle,
+    NSTextAlignmentCenter,
+    NSTextField,
+    NSView,
 )
 from Quartz import (
+    CGEventCreateKeyboardEvent,
+    CGEventKeyboardGetUnicodeString,
     CGEventGetFlags,
     CGEventGetIntegerValueField,
     kCGEventKeyDown,
@@ -19,57 +29,133 @@ from Quartz import (
     NSShiftKeyMask,
 )
 
+
 # Local libraries
 from .constants import LAUNCHER_TRIGGER, LAUNCHER_TRIGGER_MASK
 from .health_checks import LOG_DIR
 
-# This is the file 
+# File for storing the custom trigger
 TRIGGER_FILE = LOG_DIR / "custom_trigger.json"
+SPECIAL_KEY_NAMES = {
+    49: "Space", 36: "Return", 53: "Escape",
+    122: "F1", 120: "F2", 99: "F3", 118: "F4",
+    96: "F5", 97: "F6", 98: "F7", 100: "F8",
+    101: "F9", 109: "F10", 103: "F11", 111: "F12",
+    123: "Left Arrow", 124: "Right Arrow",
+    125: "Down Arrow", 126: "Up Arrow"
+}
+handle_new_trigger = None
 
-# Load trigger from JSON file if it exists, otherwise do nothing.
-def load_custom_lancher_trigger():
+# Load trigger from JSON file if it exists
+def load_custom_launcher_trigger():
     if TRIGGER_FILE.exists():
         try:
             with open(TRIGGER_FILE, "r") as f:
                 data = json.load(f)
                 launcher_trigger = {"flags": data["flags"], "key": data["key"]}
-            print(f"Setting custom launch trigger:\n  {launcher_trigger}", flush=True)
+            print(f"Overwriting default with a custom launch trigger:\n  {launcher_trigger}", flush=True)
+            print(f"Disable custom override and return to default by deleting the file:\n  {TRIGGER_FILE}", flush=True)
             LAUNCHER_TRIGGER.update(launcher_trigger)
         except (json.JSONDecodeError, KeyError):
             pass
 
-# Begin listening for a new key combination for triggering the application.
-def set_custom_launcher_trigger():
+def set_custom_launcher_trigger(app):
+    app.showWindow_(None)
     print("Setting new launcher trigger.", flush=True)
-    # Disable the current listener.
+    # Disable the current trigger
     LAUNCHER_TRIGGER["flags"] = None
     LAUNCHER_TRIGGER["key"] = None
-    notification = NSUserNotification.alloc().init()
-    notification.setTitle_("macOS Grok Overlay")
-    notification.setInformativeText_("Press the new trigger key combination now.")
-    NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification_(notification)
+    # Get the content view bounds
+    content_view = app.window.contentView()
+    content_bounds = content_view.bounds()
+    # Create the overlay view to shade the main application
+    overlay_view = NSView.alloc().initWithFrame_(content_bounds)
+    overlay_view.setWantsLayer_(True)
+    overlay_view.layer().setBackgroundColor_(NSColor.colorWithWhite_alpha_(0.0, 0.5).CGColor())  # Semi-transparent black
+    # Define container dimensions
+    container_width = 400
+    container_height = 180
+    container_x = (content_bounds.size.width - container_width) / 2
+    container_y = (content_bounds.size.height - container_height) / 2
+    container_frame = NSMakeRect(container_x, container_y, container_width, container_height)
+    container_view = NSView.alloc().initWithFrame_(container_frame)
+    container_view.setWantsLayer_(True)
+    container_view.layer().setBackgroundColor_(app.drag_area.layer().backgroundColor())  # Match app.drag_area
+    container_view.layer().setCornerRadius_(10)  # Rounded corners for overlay
+    # Define message label dimensions
+    message_label_width = container_width
+    message_label_height = 40
+    message_label_x = 0
+    message_label_y = container_height - message_label_height - 30
+    # Define minimum separation
+    min_separation = 20
+    # Define trigger display container dimensions
+    trigger_display_container_width = 280
+    trigger_display_container_height = 38
+    trigger_display_container_x = (container_width - trigger_display_container_width) / 2
+    trigger_display_container_y = message_label_y - min_separation - trigger_display_container_height
+    # Define trigger display dimensions (inside the container)
+    trigger_display_width = trigger_display_container_width
+    trigger_display_height = trigger_display_container_height  # Match container height for vertical centering
+    trigger_display_x = 0
+    trigger_display_y = -10
+    # Create the static message label
+    message_label_frame = NSMakeRect(message_label_x, message_label_y, message_label_width, message_label_height)
+    message_label = NSTextField.alloc().initWithFrame_(message_label_frame)
+    message_label.setStringValue_("Press the new trigger key combination now.")  # Static text
+    message_label.setBezeled_(False)
+    message_label.setDrawsBackground_(False)
+    message_label.setEditable_(False)
+    message_label.setSelectable_(False)
+    message_label.setAlignment_(NSTextAlignmentCenter)
+    message_label.setFont_(NSFont.boldSystemFontOfSize_(17))  # Large regular font
+    # Create the trigger display container with lighter color and rounded corners
+    trigger_display_container_frame = NSMakeRect(trigger_display_container_x, trigger_display_container_y, trigger_display_container_width, trigger_display_container_height)
+    trigger_display_container = NSView.alloc().initWithFrame_(trigger_display_container_frame)
+    trigger_display_container.setWantsLayer_(True)
+    trigger_display_container.layer().setBackgroundColor_(NSColor.lightGrayColor().CGColor())  # Lighter color
+    trigger_display_container.layer().setCornerRadius_(5)  # Rounded corners
+    # Create the trigger display inside the container
+    trigger_display_frame = NSMakeRect(trigger_display_x, trigger_display_y, trigger_display_width, trigger_display_height)
+    trigger_display = NSTextField.alloc().initWithFrame_(trigger_display_frame)
+    trigger_display.setStringValue_("Waiting for key press...")  # Initial "waiting" text
+    trigger_display.setBezeled_(False)
+    trigger_display.setDrawsBackground_(False)  # Transparent to show container's background
+    trigger_display.setEditable_(False)
+    trigger_display.setSelectable_(False)
+    trigger_display.setAlignment_(NSTextAlignmentCenter)
+    trigger_display.setFont_(NSFont.systemFontOfSize_(16))  # Large regular font
+    # Assemble the view hierarchy
+    trigger_display_container.addSubview_(trigger_display)
+    container_view.addSubview_(message_label)
+    container_view.addSubview_(trigger_display_container)
+    overlay_view.addSubview_(container_view)
+    content_view.addSubview_(overlay_view)
+    # Define the handler for the new trigger
+    def custom_handle_new_trigger(event, flags, keycode):
+        launcher_trigger = {"flags": flags, "key": keycode}
+        with open(TRIGGER_FILE, "w") as f:
+            json.dump(launcher_trigger, f)
+        LAUNCHER_TRIGGER.update(launcher_trigger)
+        trigger_str = get_trigger_string(event, flags, keycode)
+        print("New launcher trigger set:", flush=True)
+        print(f"  {launcher_trigger}", flush=True)
+        print(f"  {trigger_str}", flush=True)
+        # Update only the trigger display, not the message label
+        trigger_display.setStringValue_(trigger_str)
+        # Remove the overlay after 3 seconds
+        overlay_view.performSelector_withObject_afterDelay_("removeFromSuperview", None, 1.5)
+        # Reset the handler
+        global handle_new_trigger
+        handle_new_trigger = None
+        app.showWindow_(None)
+        return None
+    # Set the global handler
+    global handle_new_trigger
+    handle_new_trigger = custom_handle_new_trigger
 
-# Announce and save a new key combination for triggering the application.
-def announce_custom_launcher_trigger(event, flags, keycode):
-    # Capture the new trigger
-    launcher_trigger = {"flags": flags, "key": keycode}
-    with open(TRIGGER_FILE, "w") as f:
-        json.dump(launcher_trigger, f)
-    LAUNCHER_TRIGGER.update(launcher_trigger)
-    # Convert to human-readable string
-    nsevent = NSEvent.eventWithCGEvent_(event)
-    if nsevent:
-        key = nsevent.charactersIgnoringModifiers()
-        if key == " ":
-            key_name = "Space"
-        elif key == "\r":
-            key_name = "Return"
-        elif key == "\x1b":
-            key_name = "Escape"
-        else:
-            key_name = key.upper()
-    else:
-        key_name = f"Keycode {keycode}"
+# Helper function to get modifier names
+def get_modifier_names(flags):
     modifier_names = []
     if flags & NSShiftKeyMask:
         modifier_names.append("Shift")
@@ -79,37 +165,35 @@ def announce_custom_launcher_trigger(event, flags, keycode):
         modifier_names.append("Option")
     if flags & NSCommandKeyMask:
         modifier_names.append("Command")
-    trigger_str = " + ".join(modifier_names + [key_name]) if modifier_names else key_name
-    print("New launcher trigger set:", flush=True)
-    print(f"  {trigger_str}", flush=True)
-    # Show notification
-    notification = NSUserNotification.alloc().init()
-    notification.setTitle_("macOS Grok Overlay")
-    notification.setInformativeText_(f"New trigger set: {trigger_str}")
-    NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification_(notification)
+    return modifier_names
 
-# The logic for the global event listener for showing and hiding the application.
+# Get human-readable string for the trigger
+def get_trigger_string(event, flags, keycode):
+    # Get the modifier names.
+    modifier_names = get_modifier_names(flags)
+    # Get the key name.
+    if keycode in SPECIAL_KEY_NAMES:
+        key_name = SPECIAL_KEY_NAMES[keycode]
+    else:
+        key_name = NSEvent.eventWithCGEvent_(event).characters()
+    # Generate a plain text of the keys.
+    return " + ".join(modifier_names + [key_name]) if modifier_names else key_name
+
+# Global event listener for showing/hiding the application and setting new triggers
 def global_show_hide_listener(app):
-    # Define a listener (that references the given app).
     def listener(proxy, event_type, event, refcon):
-        # Handle only key-down events
         if event_type == kCGEventKeyDown:
-            # Extract the keycode (Space is 49)
             keycode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
-            # Extract modifier flags (e.g., Option, Shift, etc.)
             flags = CGEventGetFlags(event) & LAUNCHER_TRIGGER_MASK
-            # Check to see if we should be assigning a new key combination.
-            if (None in set(LAUNCHER_TRIGGER.values())):
+            if (None in set(LAUNCHER_TRIGGER.values())) and handle_new_trigger:
                 print("  received keys, establishing new trigger..", flush=True)
-                announce_custom_launcher_trigger(event, flags, keycode)
-            # Check for Option + Space (no other modifiers)
-            if (flags == LAUNCHER_TRIGGER["flags"]) and (keycode == LAUNCHER_TRIGGER["key"]):
+                handle_new_trigger(event, flags, keycode)
+                return None
+            elif (flags == LAUNCHER_TRIGGER["flags"]) and (keycode == LAUNCHER_TRIGGER["key"]):
                 if app.window.isKeyWindow():
                     app.hideWindow_(None)
                 else:
                     app.showWindow_(None)
-                # Return None to consume the event and prevent propagation
                 return None
-        # Return the event unchanged if it’s not Option + Space
         return event
     return listener

@@ -24,7 +24,7 @@ from .launcher import (
 )
 from .listener import (
     global_show_hide_listener,
-    load_custom_lancher_trigger,
+    load_custom_launcher_trigger,
     set_custom_launcher_trigger,
 )
 
@@ -192,7 +192,7 @@ class AppDelegate(NSObject):
         else:
             print("Failed to create event tap. Check Accessibility permissions.")
         # Load the custom launch trigger if the user set it.
-        load_custom_lancher_trigger()
+        load_custom_launcher_trigger()
         # Make sure this window is shown and focused.
         self.showWindow_(None)
 
@@ -231,7 +231,7 @@ class AppDelegate(NSObject):
 
     # Handle the 'Set Trigger' menu item click.
     def setTrigger_(self, sender):
-        set_custom_launcher_trigger()
+        set_custom_launcher_trigger(self)
 
     # For capturing key commands while the key window (in focus).
     def keyDown_(self, event):
