@@ -219,8 +219,8 @@ class AppDelegate(NSObject):
     def install_(self, sender):
         if install_startup():
             # Exit the current process since a new one will launch.
-            sys.exit(0)
             print("Installation successful, exiting.", flush=True)
+            sys.exit(0)
         else:
             print("Installation unsuccessful.", flush=True)
 

@@ -6,7 +6,7 @@
 A simple macOS overlay application for pinning <code>grok.com</code> to a dedicated window and key command <code>option+space</code>.
 </p>
 
-![Launcher Sample](images/macos-grok-overlay.png)
+![Launcher Sample](images/macos-grok-overlay.jpeg)
 
 
 ## Installation:
@@ -27,7 +27,7 @@ macos-grok-overlay --install-startup
 
 ![Accessibility Request](images/macos-grok-overlay-accessibility.png)
 
-  The Accessibility access is required for the background task to listen for the `Option+Space` keyboard command. But please don't just take my word for it, look at the [listener code yourself](macos_grok_overlay/main.py#L279-L300) and see. ;)
+  The Accessibility access is required for the background task to listen for the `Option+Space` keyboard command. But please don't just take my word for it, look at the [listener code yourself](macos_grok_overlay/listener.py) and see. ;)
 
   Within a few seconds of approving Accessibility access, you should see a little icon like this appear along the top of your screen.
 
@@ -59,9 +59,9 @@ macos-grok-overlay --uninstall-startup
 
 ## How it works
 
-  This is a very thin `pyobjc` application written to contain a web view of the current production Grok website. Most of the logic contained in this small application is for stylistic purposes, making the overlay shaped correctly, resizeable, draggable, and able to be summoned anywhere easily with a single keyboard command. There's also a few steps needed to listen specifically for the `Option + Space` keyboard command, which requires Accessibility access to macOS.
+  This is a very thin `pyobjc` application written to contain a web view of the current production Grok website. Most of the logic contained in this small application is for stylistic purposes, making the overlay shaped correctly, resizeable, draggable, and able to be summoned anywhere easily with a single (modifiable) keyboard command. There's also a few steps needed to listen specifically for the `Option + Space` keyboard command, which requires Accessibility access to macOS.
 
 
 ## Final thoughts
 
-  This was a small fun weekend project, and is not a product of the xAI team nor is it formally affiliated with them. Please file issues and I'll be happy to adjust, but I also highly recommend you look at the source code yourself if you want to change something. It's a very small and simple project entirely in [main.py](/macos_grok_overlay/main.py), Grok (or similar) could easily help you modify it for your own purposes.
+  This was a small fun weekend project, and is not a product of the xAI team nor is it formally affiliated with them. Please file issues and I'll be happy to adjust, but I also highly recommend you look at the source code yourself if you want to change something. It's a small and simple project that fits in less [than 10K tokens](http://gitingest.com/tchlux/macos-grok-overlay), Grok (or similar) could easily help you modify it for your own purposes.
