@@ -7,6 +7,7 @@ import objc
 from AppKit import *
 from WebKit import *
 from Quartz import *
+from Foundation import NSObject, NSURL, NSURLRequest, NSDate
 
 # Local libraries
 from .constants import (
@@ -77,6 +78,18 @@ class AppDelegate(NSObject):
         )
         # Save the last position and size
         self.window.setFrameAutosaveName_(FRAME_SAVE_NAME)
+        # Create the webview for the main application.
+        config = WKWebViewConfiguration.alloc().init()
+        config.preferences().setJavaScriptCanOpenWindowsAutomatically_(True)
+        # Initialize the WebView with a frame
+        self.webview = WKWebView.alloc().initWithFrame_configuration_(
+            ((0, 0), (800, 600)),  # Frame: origin (0,0), size (800x600)
+            config
+        )
+        self.webview.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)  # Resizes with window
+        # Set a custom user agent
+        safari_user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        self.webview.setCustomUserAgent_(safari_user_agent)
         # Make window transparent so that the corners can be rounded
         self.window.setOpaque_(False)
         self.window.setBackgroundColor_(NSColor.clearColor())
@@ -99,12 +112,10 @@ class AppDelegate(NSObject):
         close_button.setTarget_(self)
         close_button.setAction_("hideWindow:")
         self.drag_area.addSubview_(close_button)
-        # Set up WebKit view (below drag area)
-        self.webview = WKWebView.alloc().initWithFrame_(
-            NSMakeRect(0, 0, content_bounds.size.width, content_bounds.size.height - DRAG_AREA_HEIGHT)
-        )
-        self.webview.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)  # Resizes with window
+        # Update the webview sizinug and insert it below drag area.
         content_view.addSubview_(self.webview)
+        self.webview.setFrame_(NSMakeRect(0, 0, content_bounds.size.width, content_bounds.size.height - DRAG_AREA_HEIGHT))
+        # Contat the target website.
         url = NSURL.URLWithString_(WEBSITE)
         request = NSURLRequest.requestWithURL_(url)
         self.webview.loadRequest_(request)
@@ -123,8 +134,6 @@ class AppDelegate(NSObject):
         """
         user_script = WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(script, WKUserScriptInjectionTimeAtDocumentEnd, True)
         user_content_controller.addUserScript_(user_script)
-        # Set the delegate of the window to this parent application.
-        self.window.setDelegate_(self)
         # Create status bar item with logo
         self.status_item = NSStatusBar.systemStatusBar().statusItemWithLength_(NSSquareStatusItemLength)
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -152,18 +161,21 @@ class AppDelegate(NSObject):
         home_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Home", "goToWebsite:", "g")
         home_item.setTarget_(self)
         menu.addItem_(home_item)
-        quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Quit", "terminate:", "q")
-        quit_item.setTarget_(NSApp)
-        menu.addItem_(quit_item)
+        clear_data_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Clear Web Cache", "clearWebViewData:", "")
+        clear_data_item.setTarget_(self)
+        menu.addItem_(clear_data_item)
         set_trigger_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Set New Trigger", "setTrigger:", "")
         set_trigger_item.setTarget_(self)
         menu.addItem_(set_trigger_item)
-        install_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Install", "install:", "")
+        install_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Install Autolauncher", "install:", "")
         install_item.setTarget_(self)
         menu.addItem_(install_item)
-        uninstall_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Uninstall", "uninstall:", "")
+        uninstall_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Uninstall Autolauncher", "uninstall:", "")
         uninstall_item.setTarget_(self)
         menu.addItem_(uninstall_item)
+        quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Quit", "terminate:", "q")
+        quit_item.setTarget_(NSApp)
+        menu.addItem_(quit_item)
         # Set the menu for the status item
         self.status_item.setMenu_(menu)
         # Add resize observer
@@ -194,6 +206,8 @@ class AppDelegate(NSObject):
             print("Failed to create event tap. Check Accessibility permissions.")
         # Load the custom launch trigger if the user set it.
         load_custom_launcher_trigger()
+        # Set the delegate of the window to this parent application.
+        self.window.setDelegate_(self)
         # Make sure this window is shown and focused.
         self.showWindow_(None)
 
@@ -216,6 +230,16 @@ class AppDelegate(NSObject):
         request = NSURLRequest.requestWithURL_(url)
         self.webview.loadRequest_(request)
     
+    # Clear the webview cache data (in case cookies cause errors).
+    def clearWebViewData_(self, sender):
+        dataStore = self.webview.configuration().websiteDataStore()
+        dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
+        dataStore.removeDataOfTypes_modifiedSince_completionHandler_(
+            dataTypes,
+            NSDate.distantPast(),
+            lambda: print("Data cleared")
+        )
+
     # Go to the default landing website for the overlay (in case accidentally navigated away).
     def install_(self, sender):
         if install_startup():

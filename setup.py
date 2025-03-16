@@ -74,6 +74,10 @@ if __name__ == "__main__":
                         'CFBundleName': package_name,
                         'CFBundleIdentifier': f'com.github-{git_username}.macos{source_page}overlay',  # Unique identifier
                         'LSUIElement': True,  # Hide from Dock and Cmd+Tab
+                        # 'NSAppTransportSecurity': {'NSAllowsArbitraryLoads': True}  # Allow HTTP and invalid HTTPS certificates for X login
+                        # 'NSCameraUsageDescription': 'Camera access is needed to take pictures.',
+                        # 'NSMicrophoneUsageDescription': 'Microphone access is needed for voice mode features.'
+
                     },
                     'includes': ['pyobjc'],  # Ensure required dependencies are bundled
                     'packages': [package],
