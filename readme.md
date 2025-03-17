@@ -13,7 +13,7 @@ A simple macOS overlay application for pinning <code>grok.com</code> to a dedica
 
   The easiest approach is to download and execute the DMG installer (by clicking the image below) to place the program into your Applications folder.
 
-[![DMG Installer](images/dmg-installer-preview.png)](https://github.com/tchlux/macos-grok-overlay/releases/download/0.0.15/macos-grok-overlay.dmg)
+[![DMG Installer](images/dmg-installer-preview.png)](https://github.com/tchlux/macos-grok-overlay/releases/download/0.0.16/macos-grok-overlay.dmg)
 
   Otherwise, you can install the latest stable release from a Terminal with:
 
